@@ -1,0 +1,5 @@
+.gradle/
+.idea/
+build/
+.kotlin/
+hosted/docker-compose.override.yml

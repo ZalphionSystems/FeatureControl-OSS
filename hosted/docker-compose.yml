@@ -1,0 +1,41 @@
+services:
+  toggles:
+    image: toggles
+    container_name: toggles
+    environment:
+      APP_SECRET: secret_key # Aim for 256 bits of entropy.  Recommend 40 characters from the full ASCII alphabet
+      GOOGLE_CLIENT_ID: optional # Provide to support Google Sign In.
+      ORIGIN: https://feature-control.mydomain.com # Replace this with the full URI your users will navigate to
+      POSTGRES_HOST: postgres # Keep this as-is
+      POSTGRES_USERNAME: username # Match that of the postgres container
+      POSTGRES_PASSWORD: password # Match that of the postgres container
+      SMTP_AUTHORITY: optional # Host and Port of your SMTP server, e.g. smtp1.mydomain.com:25
+      SMTP_FROM_ADDRESS: address  # required if smtp_authority is set. e.g., noreply@mydomain.com
+      SMTP_USERNAME: optional
+      SMTP_PASSWORD: conditional # required if SMTP_USERNAME is provided
+    ports:
+      - "80:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: feature-control
+      POSTGRES_USER: username # Replace this with your own secret
+      POSTGRES_PASSWORD: password # Replace this with your own sevret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

@@ -1,0 +1,31 @@
+package com.zalphion.featurecontrol.features
+
+import com.zalphion.featurecontrol.applications.AppId
+import com.zalphion.featurecontrol.keyValidation
+import com.zalphion.featurecontrol.plugins.Extensions
+import dev.forkhandles.values.ComparableValue
+import dev.forkhandles.values.NonEmptyStringValueFactory
+import dev.forkhandles.values.StringValue
+import dev.forkhandles.values.StringValueFactory
+
+data class Feature(
+    val appId: AppId,
+    val key: FeatureKey,
+    val variants: Map<Variant, String>,
+    val environments: Map<EnvironmentName, FeatureEnvironment>,
+    val defaultVariant: Variant,
+    val description: String,
+    val extensions: Extensions
+) {
+    operator fun get(environment: EnvironmentName) = environments[environment]
+        ?: FeatureEnvironment(emptyMap(), emptyMap(), emptyMap())
+}
+
+class FeatureKey private constructor(value: String): StringValue(value), ComparableValue<FeatureKey, String> {
+    companion object: StringValueFactory<FeatureKey>(::FeatureKey, keyValidation)
+}
+
+class Variant private constructor(value: String): StringValue(value), ComparableValue<Variant, String> {
+    companion object: NonEmptyStringValueFactory<Variant>(::Variant)
+}
+

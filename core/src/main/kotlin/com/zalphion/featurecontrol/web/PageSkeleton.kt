@@ -1,0 +1,106 @@
+package com.zalphion.featurecontrol.web
+
+import com.zalphion.featurecontrol.Core
+import com.zalphion.featurecontrol.auth.web.CSRF_COOKIE_NAME
+import com.zalphion.featurecontrol.auth.web.CSRF_FORM_PARAM
+import com.zalphion.featurecontrol.web.flash.FlashMessageDto
+import com.zalphion.featurecontrol.APP_NAME
+import kotlinx.html.FlowContent
+import kotlinx.html.ScriptCrossorigin
+import kotlinx.html.body
+import kotlinx.html.head
+import kotlinx.html.html
+import kotlinx.html.link
+import kotlinx.html.script
+import kotlinx.html.stream.createHTML
+import kotlinx.html.title
+import kotlinx.html.unsafe
+
+const val APP_SLUG = "feature-control"
+
+fun Core.pageSkeleton(
+    messages: List<FlashMessageDto>,
+    subTitle: String? = null,
+    content: (FlowContent.(Core) -> Unit),
+
+    ) = createHTML().html {
+    head {
+        if (subTitle != null) {
+            title("$subTitle - $APP_NAME")
+        } else {
+            title(APP_NAME)
+        }
+
+        // UI Kit
+        link(config.staticUri.path("/uikit-3.23.11/css/uikit.min.css").toString(), "stylesheet", "text/css")
+        script(src = config.staticUri.path("/uikit-3.23.11/js/uikit.min.js").toString(), crossorigin = ScriptCrossorigin.anonymous) {}
+        script(src = config.staticUri.path("/uikit-3.23.11/js/uikit-icons.min.js").toString(), crossorigin = ScriptCrossorigin.anonymous) {}
+
+        // alpine.js
+        script(src = config.staticUri.path("/alpinejs/3.15.3/dist/cdn.min.js").toString(), crossorigin = ScriptCrossorigin.anonymous) {
+            defer = true
+        }
+
+        // Day.js
+        script(src = config.staticUri.path("/dayjs/1.11.19/dayjs.min.js").toString(), crossorigin = ScriptCrossorigin.anonymous) {}
+        script(src = config.staticUri.path("/dayjs/1.11.19/plugin/utc.js").toString(), crossorigin = ScriptCrossorigin.anonymous) {}
+    }
+
+    body {
+        content(this@pageSkeleton)
+
+        val messagesScript = messages.joinToString("\n") { message ->
+            val status = when (message.type) {
+                FlashMessageDto.Type.Error -> "danger"
+                FlashMessageDto.Type.Success -> "success"
+                FlashMessageDto.Type.Info -> "primary"
+                FlashMessageDto.Type.Warning -> "warning"
+            }
+
+            """UIkit.notification({
+                message: '${message.message}',
+                status: '$status',
+            })"""
+        }
+
+        script {
+            unsafe { raw($$"""
+                function convertTimestamps() {
+                    document.querySelectorAll('.timestamp').forEach(el => {
+                        const utcTime = dayjs.utc(el.textContent.trim())
+                        const format = el.dataset.format || 'MMM DD, YYYY HH:mm'
+                        el.textContent = utcTime.local().format(format)
+                        
+                        el.setAttribute('uk-tooltip', `title: ${utcTime}; delay: 500;`)
+                        UIkit.tooltip(el)
+                    })
+                }
+                
+                function setupCsrf() {
+                    const csrfCookie = document.cookie.match(`(^|;)\\s*$$CSRF_COOKIE_NAME\\s*=\\s*["']?([^;"']+)["']?`)
+                    const csrfToken = csrfCookie ? csrfCookie.pop() : null
+                    if (!csrfToken) {
+                        throw new Error('Could not find CSRF token')
+                    }
+                
+                    document.querySelectorAll('form').forEach(form => {
+                        let input = form.querySelector(`input[name="$$CSRF_FORM_PARAM"]`)
+                        if (!input) {
+                            input = document.createElement('input')
+                            input.type = 'hidden'
+                            input.name = '$$CSRF_FORM_PARAM'
+                            form.appendChild(input)
+                        }
+                        input.value = csrfToken
+                    })
+                }
+                
+                dayjs.extend(dayjs_plugin_utc)
+                document.addEventListener('DOMContentLoaded', convertTimestamps)
+                document.addEventListener('DOMContentLoaded', setupCsrf)
+                $$messagesScript
+            """.trimIndent()
+            ) }
+        }
+    }
+}

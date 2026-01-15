@@ -1,0 +1,65 @@
+package com.zalphion.featurecontrol.applications
+
+import com.zalphion.featurecontrol.ActionAuth
+import com.zalphion.featurecontrol.ServiceAction
+import com.zalphion.featurecontrol.Core
+import com.zalphion.featurecontrol.members.UserRole
+import com.zalphion.featurecontrol.applicationNotEmpty
+import com.zalphion.featurecontrol.teams.TeamId
+import dev.andrewohara.utils.pagination.Paginator
+import dev.andrewohara.utils.result.failIf
+import dev.forkhandles.result4k.asSuccess
+import dev.forkhandles.result4k.map
+import dev.forkhandles.result4k.peek
+
+class ListApplications(val teamId: TeamId): ServiceAction<Paginator<Application, AppId>>(
+    auth = ActionAuth.byTeam(teamId)
+) {
+    override fun execute(core: Core) = core
+        .apps.list(teamId, core.config.pageSize).asSuccess()
+}
+
+class CreateApplication(
+    val teamId: TeamId,
+    val data: ApplicationCreateData
+): ServiceAction<Application>(
+    auth = ActionAuth.byTeam(teamId, UserRole.Developer) {
+        data.environments.flatMap(::getRequirements).toSet()
+    }
+) {
+    override fun execute(core: Core) = data
+        .toModel(teamId, core.random)
+        .also(core.apps::plusAssign)
+        .asSuccess()
+}
+
+class GetApplication(val appId: AppId): ServiceAction<Application>(
+    auth = ActionAuth.byApplication(appId, UserRole.Tester)
+) {
+    override fun execute(core: Core) = core
+        .apps.getOrFail(appId)
+}
+
+class UpdateApplication(val appId: AppId, val data: ApplicationUpdateData): ServiceAction<Application>(
+    auth = ActionAuth.byApplication(appId, UserRole.Developer) {
+        data.environments.flatMap(::getRequirements).toSet()
+    }
+) {
+    override fun execute(core: Core) = core
+        .apps.getOrFail(appId)
+        .map { it.update(data) }
+        .peek(core.apps::plusAssign)
+}
+
+class DeleteApplication(val appId: AppId): ServiceAction<Application>(
+    auth = ActionAuth.byApplication(appId, UserRole.Developer)
+) {
+    override fun execute(core: Core) = core
+        .apps.getOrFail(appId)
+        .failIf(
+            cond = { core.features.list(it.appId, core.config.pageSize).any() },
+            f= { applicationNotEmpty(it.appId) }
+        )
+        // TODO delete all api keys
+        .peek(core.apps::minusAssign)
+}
