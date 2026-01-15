@@ -2,7 +2,7 @@
 
 # Feature Control - OSS
 
-This is the fully FOSS (Free and Open Source Software) repository for the Feature Control project. It contains only open-source components and adheres to the principles of FOSS.
+This is the fully FOSS (Free and Open Source Software) core of the Feature Control project.
 
 ## Modules
 
